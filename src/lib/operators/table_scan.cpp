@@ -19,6 +19,7 @@
 #include "storage/proxy_chunk.hpp"
 #include "storage/reference_segment.hpp"
 #include "storage/table.hpp"
+#include "table_scan/between_table_scan_impl.hpp"
 #include "table_scan/column_comparison_table_scan_impl.hpp"
 #include "table_scan/is_null_table_scan_impl.hpp"
 #include "table_scan/like_table_scan_impl.hpp"
@@ -181,10 +182,22 @@ void TableScan::_init_scan() {
     const auto right_value = boost::get<AllTypeVariant>(parameter);
 
     _impl = std::make_unique<SingleColumnTableScanImpl>(_in_table, column_id, condition, right_value);
-  } else /* is_column_name(parameter) */ {
+  } else if(is_column_id(parameter)) {
     const auto right_column_id = boost::get<ColumnID>(parameter);
 
     _impl = std::make_unique<ColumnComparisonTableScanImpl>(_in_table, column_id, condition, right_column_id);
+  } else {
+    DebugAssert(condition == PredicateCondition::Between, "Expected BETWEEN at this point");
+
+    const auto left_value = boost::get<AllTypeVariant>(parameter);
+    DebugAssert(_predicate.value2, "Expected right value for BETWEEN");
+    const auto right_value = boost::get<AllTypeVariant>(*_predicate.value2);
+    DebugAssert(left_value.which() == right_value.which(), "Expected left and right value to be of the same type (see operator_scan_predicate.cpp)");
+
+    // TODO check that neither is NULL
+
+    _impl = std::make_unique<BetweenTableScanImpl>(_in_table, column_id, condition, right_column_id);
+
   }
 }
 

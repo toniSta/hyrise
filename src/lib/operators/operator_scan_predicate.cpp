@@ -59,23 +59,6 @@ std::optional<std::vector<OperatorScanPredicate>> OperatorScanPredicate::from_ex
 
   auto predicate_condition = predicate->predicate_condition;
 
-  // Split up the redundant abomination that is BETWEEN into two expressions
-  if (predicate_condition == PredicateCondition::Between) {
-    Assert(predicate->arguments.size() == 3, "Expect ternary PredicateExpression to have three arguments");
-
-    auto lower_bound_predicates =
-        from_expression(*greater_than_equals_(predicate->arguments[0], predicate->arguments[1]), node);
-    auto upper_bound_predicates =
-        from_expression(*less_than_equals_(predicate->arguments[0], predicate->arguments[2]), node);
-
-    if (!lower_bound_predicates || !upper_bound_predicates) return std::nullopt;
-
-    auto predicates = *lower_bound_predicates;
-    predicates.insert(predicates.end(), upper_bound_predicates->begin(), upper_bound_predicates->end());
-
-    return predicates;
-  }
-
   auto argument_a = resolve_all_parameter_variant(*predicate->arguments[0], node);
   if (!argument_a) return std::nullopt;
 
@@ -93,6 +76,37 @@ std::optional<std::vector<OperatorScanPredicate>> OperatorScanPredicate::from_ex
   auto argument_b = resolve_all_parameter_variant(*expression.arguments[1], node);
   if (!argument_b) return std::nullopt;
 
+  // We can handle x BETWEEN a AND b if a and b are scalar values of the same data type. Otherwise, the condition gets
+  // translated into two columns. Theoretically, we could also implement all variations where x, a and b are
+  // non-scalar and of varying types, but as these are used less frequently, would require more code, and increase
+  // compile time, we don't do that for now.
+  if (predicate_condition == PredicateCondition::Between) {
+    Assert(predicate->arguments.size() == 3, "Expect ternary PredicateExpression to have three arguments");
+
+    auto argument_c = resolve_all_parameter_variant(*expression.arguments[2], node);
+    if (!argument_c) return std::nullopt;
+
+    if (is_column_id(*argument_a) && is_variant(*argument_b) && is_variant(*argument_c) &&
+        predicate->arguments[1]->data_type() == predicate->arguments[2]->data_type()) {
+      // This is the BETWEEN case that we can handle
+      return std::vector<OperatorScanPredicate>{
+          OperatorScanPredicate{boost::get<ColumnID>(*argument_a), predicate_condition, *argument_b, *argument_c}};
+    }
+
+    // We can't handle the case, so we translate it into two predicates
+    auto lower_bound_predicates =
+        from_expression(*greater_than_equals_(predicate->arguments[0], predicate->arguments[1]), node);
+    auto upper_bound_predicates =
+        from_expression(*less_than_equals_(predicate->arguments[0], predicate->arguments[2]), node);
+
+    if (!lower_bound_predicates || !upper_bound_predicates) return std::nullopt;
+
+    auto predicates = *lower_bound_predicates;
+    predicates.insert(predicates.end(), upper_bound_predicates->begin(), upper_bound_predicates->end());
+
+    return predicates;
+  }
+
   if (!is_column_id(*argument_a) && is_column_id(*argument_b)) {
     std::swap(argument_a, argument_b);
     predicate_condition = flip_predicate_condition(predicate_condition);
@@ -103,7 +117,8 @@ std::optional<std::vector<OperatorScanPredicate>> OperatorScanPredicate::from_ex
 }
 
 OperatorScanPredicate::OperatorScanPredicate(const ColumnID column_id, const PredicateCondition predicate_condition,
-                                             const AllParameterVariant& value)
-    : column_id(column_id), predicate_condition(predicate_condition), value(value) {}
+                                             const AllParameterVariant& value,
+                                             const std::optional<AllParameterVariant>& value2)
+    : column_id(column_id), predicate_condition(predicate_condition), value(value), value2(value2) {}
 
 }  // namespace opossum

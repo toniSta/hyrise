@@ -168,6 +168,7 @@ std::shared_ptr<AbstractOperator> LQPTranslator::_translate_predicate_node_to_ta
 
 std::shared_ptr<AbstractOperator> LQPTranslator::_translate_predicate_node_to_index_scan(
     const std::shared_ptr<PredicateNode>& node, const std::shared_ptr<AbstractOperator>& input_operator) const {
+  // TODO
   /**
    * Not using OperatorScanPredicate, since the IndexScan still wants to do BETWEEN in one step and splitting it up
    * in two doesn't work as you can only do a single IndexScan per Table.
