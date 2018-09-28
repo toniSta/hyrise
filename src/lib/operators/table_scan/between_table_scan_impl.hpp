@@ -4,6 +4,7 @@
 
 #include "base_single_column_table_scan_impl.hpp"
 
+#include "all_type_variant.hpp"
 #include "types.hpp"
 
 namespace opossum {
@@ -23,7 +24,18 @@ class Table;
 class BetweenTableScanImpl : public BaseSingleColumnTableScanImpl {
  public:
   BetweenTableScanImpl(const std::shared_ptr<const Table>& in_table, const ColumnID left_column_id,
-                       const AllTypeVariant& left_value, const AllTypeVariant& left_value);
+                       const AllTypeVariant& left_value, const AllTypeVariant& right_value);
+
+  void handle_segment(const BaseValueSegment& base_segment,
+                      std::shared_ptr<SegmentVisitorContext> base_context) override;
+
+  void handle_segment(const BaseDictionarySegment& base_segment,
+                      std::shared_ptr<SegmentVisitorContext> base_context) override;
+
+  void handle_segment(const BaseEncodedSegment& base_segment,
+                      std::shared_ptr<SegmentVisitorContext> base_context) override;
+
+  using BaseSingleColumnTableScanImpl::handle_segment;
 
  private:
   const AllTypeVariant _left_value;

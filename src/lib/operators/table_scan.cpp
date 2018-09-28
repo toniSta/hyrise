@@ -47,6 +47,7 @@ const std::string TableScan::description(DescriptionMode description_mode) const
 const OperatorScanPredicate& TableScan::predicate() const { return _predicate; }
 
 void TableScan::_on_set_parameters(const std::unordered_map<ParameterID, AllTypeVariant>& parameters) {
+  // TODO
   if (!is_parameter_id(_predicate.value)) return;
 
   const auto value_iter = parameters.find(boost::get<ParameterID>(_predicate.value));
@@ -178,26 +179,28 @@ void TableScan::_init_scan() {
     return;
   }
 
-  if (is_variant(parameter)) {
+  if (condition == PredicateCondition::Between) {
+    const auto left_value = boost::get<AllTypeVariant>(parameter);
+
+    DebugAssert(_predicate.value2, "Expected right value for BETWEEN");
+    const auto right_value = boost::get<AllTypeVariant>(*_predicate.value2);
+
+    DebugAssert(left_value.which() == right_value.which(),
+                "Expected left and right value to be of the same type (see operator_scan_predicate.cpp)");
+    DebugAssert(!variant_is_null(left_value) && !variant_is_null(right_value),
+                "Expected BETWEEN values to be non-null");
+
+    _impl = std::make_unique<BetweenTableScanImpl>(_in_table, column_id, left_value, right_value);
+  } else if (is_variant(parameter)) {
     const auto right_value = boost::get<AllTypeVariant>(parameter);
 
     _impl = std::make_unique<SingleColumnTableScanImpl>(_in_table, column_id, condition, right_value);
-  } else if(is_column_id(parameter)) {
+  } else if (is_column_id(parameter)) {
     const auto right_column_id = boost::get<ColumnID>(parameter);
 
     _impl = std::make_unique<ColumnComparisonTableScanImpl>(_in_table, column_id, condition, right_column_id);
   } else {
-    DebugAssert(condition == PredicateCondition::Between, "Expected BETWEEN at this point");
-
-    const auto left_value = boost::get<AllTypeVariant>(parameter);
-    DebugAssert(_predicate.value2, "Expected right value for BETWEEN");
-    const auto right_value = boost::get<AllTypeVariant>(*_predicate.value2);
-    DebugAssert(left_value.which() == right_value.which(), "Expected left and right value to be of the same type (see operator_scan_predicate.cpp)");
-
-    // TODO check that neither is NULL
-
-    _impl = std::make_unique<BetweenTableScanImpl>(_in_table, column_id, condition, right_column_id);
-
+    Fail("Never expected to end up here...");
   }
 }
 

@@ -7,6 +7,7 @@
 #include "expression/value_expression.hpp"
 #include "logical_query_plan/abstract_lqp_node.hpp"
 #include "utils/assert.hpp"
+#include "utils/performance_warning.hpp"
 
 namespace {
 
@@ -47,6 +48,11 @@ std::string OperatorScanPredicate::to_string(const std::shared_ptr<const Table>&
 
   std::stringstream stream;
   stream << column_name_left << " " << predicate_condition_to_string.left.at(predicate_condition) << " " << right;
+
+  if (predicate_condition == PredicateCondition::Between) {
+    stream << " AND " << *value2;
+  }
+
   return stream.str();
 }
 
@@ -87,11 +93,15 @@ std::optional<std::vector<OperatorScanPredicate>> OperatorScanPredicate::from_ex
     if (!argument_c) return std::nullopt;
 
     if (is_column_id(*argument_a) && is_variant(*argument_b) && is_variant(*argument_c) &&
-        predicate->arguments[1]->data_type() == predicate->arguments[2]->data_type()) {
+        predicate->arguments[1]->data_type() == predicate->arguments[2]->data_type() &&
+        !variant_is_null(boost::get<AllTypeVariant>(*argument_b)) &&
+        !variant_is_null(boost::get<AllTypeVariant>(*argument_c))) {
       // This is the BETWEEN case that we can handle
       return std::vector<OperatorScanPredicate>{
           OperatorScanPredicate{boost::get<ColumnID>(*argument_a), predicate_condition, *argument_b, *argument_c}};
     }
+
+    PerformanceWarning("BETWEEN handled as two table scans because no BETWEEN specialization was available");
 
     // We can't handle the case, so we translate it into two predicates
     auto lower_bound_predicates =
