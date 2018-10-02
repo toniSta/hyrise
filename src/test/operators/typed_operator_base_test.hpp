@@ -27,9 +27,14 @@ static std::vector<ParamType> create_param_pairs() {
   std::vector<ParamType> pairs;
 
   hana::for_each(data_type_pairs, [&](auto pair) {
-    // TODO iterate over encoding types
-    pairs.emplace_back(hana::first(pair), EncodingType::Unencoded, true);
-    pairs.emplace_back(hana::first(pair), EncodingType::Unencoded, false);
+    const auto& data_type = hana::first(pair);
+
+    for (auto it = encoding_type_to_string.begin(); it != encoding_type_to_string.end(); ++it) {
+      const auto& encoding = it->left;
+      if (!encoding_supports_data_type(encoding, data_type)) continue;
+      pairs.emplace_back(data_type, encoding, true);
+      pairs.emplace_back(data_type, encoding, false);
+    }
   });
 
   return pairs;

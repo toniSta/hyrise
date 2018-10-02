@@ -47,13 +47,15 @@ const std::string TableScan::description(DescriptionMode description_mode) const
 const OperatorScanPredicate& TableScan::predicate() const { return _predicate; }
 
 void TableScan::_on_set_parameters(const std::unordered_map<ParameterID, AllTypeVariant>& parameters) {
-  // TODO
-  if (!is_parameter_id(_predicate.value)) return;
+  if (is_parameter_id(_predicate.value)) {
+    const auto value_iter = parameters.find(boost::get<ParameterID>(_predicate.value));
+    if (value_iter != parameters.end()) _predicate.value = value_iter->second;
+  }
 
-  const auto value_iter = parameters.find(boost::get<ParameterID>(_predicate.value));
-  if (value_iter == parameters.end()) return;
-
-  _predicate.value = value_iter->second;
+  if (_predicate.value2 && is_parameter_id(*_predicate.value2)) {
+    const auto value_iter = parameters.find(boost::get<ParameterID>(*_predicate.value2));
+    if (value_iter != parameters.end()) _predicate.value2 = value_iter->second;
+  }
 }
 
 std::shared_ptr<AbstractOperator> TableScan::_on_deep_copy(
