@@ -64,6 +64,7 @@ endif()
 # Add Libraries with their own build setup
 add_subdirectory(tpch-dbgen)
 add_subdirectory(googletest)
+add_subdirectory(range-v3)
 
 # Add PGASUS
 if(${NUMA_FOUND})
