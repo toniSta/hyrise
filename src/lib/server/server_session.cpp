@@ -28,6 +28,8 @@
 #include "utils/assert.hpp"
 #include "utils/load_table.hpp"
 
+#include "tpch/tpch_db_generator.hpp"
+
 namespace opossum {
 
 using opossum::then_operator::then;
@@ -172,6 +174,13 @@ boost::future<void> ServerSessionImpl<TConnection, TTaskRunner>::_send_simple_qu
 
 template <typename TConnection, typename TTaskRunner>
 boost::future<void> ServerSessionImpl<TConnection, TTaskRunner>::_handle_simple_query_command(const std::string& sql) {
+  if (sql.compare("generate_tpch") == 0) {
+    auto scale_factor = 1.0f;
+    uint32_t chunk_size = 1'000'000;
+    TpchDbGenerator{scale_factor, chunk_size}.generate_and_store();
+    return boost::future<void>();
+  }
+
   auto create_sql_pipeline = [=]() {
     return _task_runner->dispatch_server_task(std::make_shared<CreatePipelineTask>(sql, true));
   };
