@@ -31,7 +31,6 @@ void Server::_start_session(boost::system::error_code error) {
     // Start the session and release it once it has terminated
     session->start() >> then >> [=]() mutable { session.reset(); };
   }
-
   _accept_next_connection();
 }
 

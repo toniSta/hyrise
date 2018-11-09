@@ -27,8 +27,14 @@
 #include "use_boost_future.hpp"
 #include "utils/assert.hpp"
 #include "utils/load_table.hpp"
+#include "utils/tracing/probes.hpp"
 
 #include "tpch/tpch_db_generator.hpp"
+
+#include <iostream>
+
+#include <valgrind/callgrind.h>
+#include <chrono>
 
 namespace opossum {
 
@@ -38,7 +44,13 @@ template <typename TConnection, typename TTaskRunner>
 boost::future<void> ServerSessionImpl<TConnection, TTaskRunner>::start() {
   // We need a copy of this session to outlive the async operation
   auto self = this->shared_from_this();
-  return (_perform_session_startup() >> then >> [this, self]() { return _handle_client_requests(); })
+  return (_perform_session_startup() >> then >> [this, self]() { 
+    DTRACE_PROBE(HYRISE, CLIENT_REQUEST);
+
+    auto test = _handle_client_requests(); 
+    DTRACE_PROBE(HYRISE, CLIENT_REQUEST_DONE);
+    return test;
+ })
       // Use .then instead of >> then >> to be able to handle exceptions
       .then(boost::launch::sync, [self](boost::future<void> f) {
         try {
@@ -66,13 +78,32 @@ boost::future<void> ServerSessionImpl<TConnection, TTaskRunner>::_perform_sessio
 }
 
 template <typename TConnection, typename TTaskRunner>
+void ServerSessionImpl<TConnection, TTaskRunner>::do_nothing() {
+  // std::cout << "";
+}
+
+template <typename TConnection, typename TTaskRunner>
 boost::future<void> ServerSessionImpl<TConnection, TTaskRunner>::_handle_client_requests() {
+  DTRACE_PROBE(HYRISE, CLIENT_REQUEST);
   auto process_command = [=](RequestHeader request) {
     switch (request.message_type) {
       case NetworkMessageType::SimpleQueryCommand: {
         return _connection->receive_simple_query_packet_body(request.payload_length) >> then >>
-               [=](std::string sql) { return _handle_simple_query_command(sql); } >> then >>
-               [=]() { return _connection->send_ready_for_query(); };
+               [=](std::string sql) { 
+
+                  CALLGRIND_START_INSTRUMENTATION;
+                  DTRACE_PROBE(HYRISE, HANDLE_QUERY);
+                  auto test = _handle_simple_query_command(sql);
+                  DTRACE_PROBE(HYRISE, HANDLE_QUERY_DONE);
+
+                  CALLGRIND_STOP_INSTRUMENTATION;
+                  return test;
+
+              } >> then >>
+               [=]() { return _connection->send_ready_for_query(); };        
+        // return _connection->receive_simple_query_packet_body(request.payload_length) >> then >>
+        //        [=](std::string sql) { return do_nothing(); } >> then >>
+        //        [=]() { return _connection->send_ready_for_query(); };
       }
 
       case NetworkMessageType::ParseCommand: {
@@ -182,18 +213,29 @@ boost::future<void> ServerSessionImpl<TConnection, TTaskRunner>::_handle_simple_
   }
 
   auto create_sql_pipeline = [=]() {
-    return _task_runner->dispatch_server_task(std::make_shared<CreatePipelineTask>(sql, true));
+    DTRACE_PROBE(HYRISE, PIPELINE_CREATION);
+    auto test = _task_runner->dispatch_server_task(std::make_shared<CreatePipelineTask>(sql, true));
+    DTRACE_PROBE(HYRISE, PIPELINE_CREATION_DONE);
+
+    return test;
   };
 
   auto load_table_file = [=](std::string& file_name, std::string& table_name) {
+    DTRACE_PROBE(HYRISE, LOAD_SERVER_FILE);
     auto task = std::make_shared<LoadServerFileTask>(file_name, table_name);
-    return _task_runner->dispatch_server_task(task) >> then >>
+    auto test = _task_runner->dispatch_server_task(task) >> then >>
            [=]() { return _connection->send_notice("Successfully loaded " + table_name); };
+    DTRACE_PROBE(HYRISE, LOAD_SERVER_FILE_DONE);
+
+    return test;
   };
 
   auto execute_sql_pipeline = [=](std::shared_ptr<SQLPipeline> sql_pipeline) {
+    DTRACE_PROBE(HYRISE, EXECUTE_PIPELINE);
     auto task = std::make_shared<ExecuteServerQueryTask>(sql_pipeline);
-    return _task_runner->dispatch_server_task(task) >> then >> [=]() { return sql_pipeline; };
+    auto test = _task_runner->dispatch_server_task(task) >> then >> [=]() { return sql_pipeline; };
+    DTRACE_PROBE(HYRISE, EXECUTE_PIPELINE_DONE);
+    return test;
   };
 
   // A simple query command invalidates unnamed statements and portals

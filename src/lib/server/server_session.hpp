@@ -21,6 +21,7 @@ class ServerSessionImpl : public std::enable_shared_from_this<ServerSessionImpl<
       : _connection(connection), _task_runner(task_runner) {}
 
   boost::future<void> start();
+  void do_nothing();
 
  protected:
   boost::future<void> _perform_session_startup();
