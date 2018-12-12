@@ -143,6 +143,7 @@ int Console::read() {
 
   // Prompt user for input
   buffer = readline(_prompt.c_str());
+  auto start = std::chrono::high_resolution_clock::now();
   if (buffer == nullptr) {
     return ReturnCode::Quit;
   }
@@ -164,7 +165,12 @@ int Console::read() {
   // Free buffer, since readline() allocates new string every time
   free(buffer);  // NOLINT (legacy API)
 
-  return _eval(input);
+  auto result = _eval(input);
+
+  auto end = std::chrono::high_resolution_clock::now();
+  auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  std::cout << "Eval time: " << us.count() << "µs" << std::endl;
+  return result;
 }
 
 int Console::execute_script(const std::string& filepath) { return _exec_script(filepath); }

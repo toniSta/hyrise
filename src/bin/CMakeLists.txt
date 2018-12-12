@@ -24,11 +24,17 @@ add_executable(
     hyrisePlayground
 
     playground.cpp
+    console/pagination.cpp
+    console/pagination.hpp
 )
 target_link_libraries(
     hyrisePlayground
     hyrise
     hyriseBenchmarkLib
+    ncurses
+    ${READLINE_LIBRARY}
+    ${FILESYSTEM_LIBRARY}
+    ${CMAKE_DL_LIBS}
 )
 
 # Configure tpchTableGenerator
