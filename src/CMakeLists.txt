@@ -6,6 +6,10 @@ endif()
 
 add_definitions(-DHYRISE_DEBUG=${HYRISE_DEBUG})
 
+set(TONI_NUMA 0)
+
+add_definitions(-DTONI_NUMA=${TONI_NUMA})
+
 # Provide ENABLE_JIT_SUPPORT option and automatically disable JIT if compiler is not Clang 7.*
 # ENABLE_JIT_SUPPORT is OFF on MacOS by default as JIT compilation currently fails on MacOS because the specialized code
 # contains asm code on MacOS which the JIT compiler cannot handle

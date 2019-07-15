@@ -9,13 +9,27 @@
 #include "concurrency/transaction_manager.hpp"
 #include "tasks/server/execute_prepared_statement_task.hpp"
 
+#include <pthread.h>
+#include <sched.h>
+#include <unistd.h>
 
 namespace opossum {
 
 Session::Session(Socket socket) : _socket(std::make_shared<Socket>(std::move(socket))), _postgres_handler(_socket) {
         boost::asio::ip::tcp::no_delay tcp_no_delay(true);
         _socket->set_option(tcp_no_delay);
+  
+  int node = static_cast<int>(TONI_NUMA) * 15;
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(node, &cpuset);
+  auto rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+  if (rc != 0) {
+    // This is not an Assert(), though maybe it should be. Not being able to pin the threads doesn't make the DB
+    // unfunctional, but probably slower
+    std::cerr << "Error calling pthread_setaffinity_np: " << rc << std::endl;
 }
+  }
 
 void Session::start() {
   _establish_connection();

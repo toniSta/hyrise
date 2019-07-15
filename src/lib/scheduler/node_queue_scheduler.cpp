@@ -14,6 +14,7 @@
 
 #include "uid_allocator.hpp"
 #include "utils/assert.hpp"
+#include <iostream>
 
 namespace opossum {
 
@@ -28,10 +29,11 @@ NodeQueueScheduler::~NodeQueueScheduler() {
 }
 
 void NodeQueueScheduler::begin() {
-  _workers.reserve(Topology::get().num_cpus());
-  _queues.reserve(Topology::get().nodes().size());
+ // _workers.reserve(Topology::get().num_cpus());
+ // _queues.reserve(Topology::get().nodes().size());
 
-  for (auto node_id = NodeID{0}; node_id < Topology::get().nodes().size(); node_id++) {
+ //  for (auto node_id = NodeID{0}; node_id < Topology::get().nodes().size(); node_id++) {
+    auto node_id = NodeID{static_cast<uint32_t>(TONI_NUMA)};
     auto queue = std::make_shared<TaskQueue>(node_id);
 
     _queues.emplace_back(queue);
@@ -41,8 +43,7 @@ void NodeQueueScheduler::begin() {
     for (auto& topology_cpu : topology_node.cpus) {
       _workers.emplace_back(std::make_shared<Worker>(queue, _worker_id_allocator->allocate(), topology_cpu.cpu_id));
     }
-  }
-
+  // }
   _active = true;
 
   for (auto& worker : _workers) {

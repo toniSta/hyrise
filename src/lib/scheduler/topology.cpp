@@ -171,15 +171,16 @@ void Topology::_clear() {
 }
 
 void Topology::_create_memory_resources() {
-  for (auto node_id = int{0}; node_id < static_cast<int>(_nodes.size()); ++node_id) {
-    auto memsource_name = std::stringstream();
+//  for (auto node_id = int{0}; node_id < static_cast<int>(_nodes.size()); ++node_id) {
+  auto node_id = static_cast<int>(TONI_NUMA);  
+  auto memsource_name = std::stringstream();
     memsource_name << "numa_" << std::setw(3) << std::setfill('0') << node_id;
 
     // If we have a fake NUMA topology that has more nodes than our system has available,
     // distribute the fake nodes among the physically available ones.
     auto system_node_id = _fake_numa_topology ? node_id % _number_of_hardware_nodes : node_id;
     _memory_resources.emplace_back(NUMAMemoryResource(system_node_id, memsource_name.str()));
-  }
+//  }
 }
 
 std::ostream& operator<<(std::ostream& stream, const Topology& topology) {
